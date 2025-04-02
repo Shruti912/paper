@@ -1,4 +1,3 @@
-# Import essential libraries
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -14,7 +13,7 @@ import hashlib
 import torch.nn.functional as F
 
 #Phase1
-# Advanced Device Configuration
+
 def configure_device():
     """
     Robust device configuration with CUDA support
@@ -22,42 +21,32 @@ def configure_device():
     Returns:
         tuple: Configured device and generator
     """
-    # Prioritize CUDA if available
     if torch.cuda.is_available():
         device = torch.device("cuda")
         
-        # Set CUDA device and seed
         torch.cuda.set_device(0)  # Use first GPU if multiple are available
         cuda_generator = torch.Generator(device='cuda')
         cuda_generator.manual_seed(42)
         
-        # Ensure consistent device settings
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
     else:
         device = torch.device("cpu")
         cuda_generator = torch.Generator()
     
-    # Set global seeds for reproducibility
     torch.manual_seed(42)
     np.random.seed(42)
     random.seed(42)
     
     return device, cuda_generator
 
-# Global device and generator
 device, cuda_generator = configure_device()
 print(f"Using device: {device}")
 
-# Add these lines after setting seeds:
 if torch.cuda.is_available():
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-# Optional: Remove default tensor type setting
-# torch.set_default_tensor_type is deprecated in PyTorch 2.1+
-
-# 1. Dataset Preparation
 class DatasetPreparation:
     @staticmethod
     def get_cifar10_dataset(num_users=100, non_iid_alpha=0.1):
@@ -76,25 +65,21 @@ class DatasetPreparation:
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
         
-        # Download CIFAR-10
         trainset = torchvision.datasets.CIFAR10(
             root='./data', train=True, download=True, transform=transform
         )
         
-        # Create class-wise indices
         class_indices = {}
         for idx, (_, label) in enumerate(trainset):
             if label not in class_indices:
                 class_indices[label] = []
             class_indices[label].append(idx)
         
-        # Generate Dirichlet distribution for non-IID split
         class_distribution = np.random.dirichlet(
             [non_iid_alpha] * len(class_indices), 
             num_users
         )
         
-        # Split dataset across users with controlled distribution
         user_datasets = {}
         for i in range(num_users):
             user_indices = []
@@ -106,7 +91,6 @@ class DatasetPreparation:
                 )
                 user_indices.extend(user_label_indices)
             
-            # Create custom DataLoader with generator
             user_subset = torch.utils.data.Subset(trainset, user_indices)
             user_loader = torch.utils.data.DataLoader(
                 user_subset, 
@@ -119,9 +103,6 @@ class DatasetPreparation:
         
         return user_datasets
 
-# Rest of the code remains the same (TrapModel, etc.)
-
-# 2. Trap Neural Network Model
 class TrapModel(nn.Module):
     def __init__(self, input_dim=3072, num_classes=10):
         """
@@ -133,23 +114,19 @@ class TrapModel(nn.Module):
         """
         super(TrapModel, self).__init__()
         
-        # Trap first layer with specific initialization strategy
         self.fc1 = nn.Linear(input_dim, 1000)
         nn.init.kaiming_normal_(self.fc1.weight, mode='fan_in', nonlinearity='relu')
         
-        # Subsequent layers
         self.fc2 = nn.Linear(1000, 500)
         self.fc3 = nn.Linear(500, 250)
         self.fc4 = nn.Linear(250, 100)
         
-        # Classification layer with extra neuron
         self.fc5 = nn.Linear(100, num_classes + 1)
         
-        # Activation
         self.relu = nn.ReLU()
     
     def forward(self, x):
-        x = x.view(x.size(0), -1)  # Flatten
+        x = x.view(x.size(0), -1)  
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.relu(self.fc3(x))
@@ -157,7 +134,6 @@ class TrapModel(nn.Module):
         x = self.fc5(x)
         return x
 
-# 3. Sybil Injection Mechanism
 def inject_sybil_users(users, user_datasets, sybil_fraction=0.3):
     """
     Inject Sybil users with controlled gradient characteristics
@@ -190,7 +166,6 @@ def inject_sybil_users(users, user_datasets, sybil_fraction=0.3):
     
     return users + sybil_users
 
-# 4. Gradient Manipulation Function
 def manipulate_gradients(model, sybil_users):
     """
     Advanced gradient manipulation for Sybil users
@@ -210,7 +185,6 @@ def manipulate_gradients(model, sybil_users):
             # This simulates a more advanced attack vector
             model.fc5.bias.data += torch.randn_like(model.fc5.bias.data) * 0.1
 
-# Main Experiment Setup
 def main():
     # Hyperparameters
     NUM_USERS = 100
@@ -218,16 +192,13 @@ def main():
     SYBIL_FRACTION = 0.3
     NON_IID_ALPHA = 0.1
     
-    # Prepare Dataset with controlled non-IID distribution
     user_datasets = DatasetPreparation.get_cifar10_dataset(
         NUM_USERS, 
         non_iid_alpha=NON_IID_ALPHA
     )
     
-    # Initialize Model
     model = TrapModel().to(device)
     
-    # Inject Sybil Users
     users = list(user_datasets.keys())
     users_with_sybils = inject_sybil_users(
         users, 
@@ -235,7 +206,6 @@ def main():
         SYBIL_FRACTION
     )
     
-    # Gradient Manipulation Demonstration
     manipulate_gradients(model, [
         {'is_sybil': True} for _ in range(int(NUM_USERS * SYBIL_FRACTION))
     ])
@@ -263,7 +233,6 @@ class EnhancedPrivacyMechanism:
         self.global_gradient_history = []
         self.sybil_detection_threshold = 0.7
         
-        # Enhanced detection metrics
         self.detection_metrics = {
             'update_distances': [],
             'gradient_norms': []
@@ -279,11 +248,9 @@ class EnhancedPrivacyMechanism:
         Returns:
             float: Adaptive noise scale
         """
-        # More sophisticated noise scaling
         base_noise = self.base_noise_scale
         adaptive_sigma = base_noise * (1 + torch.log1p(grad_norm))
         
-        # Add clip to prevent extreme noise
         return torch.clamp(adaptive_sigma, min=0.01, max=1.0)
 
     def gradient_sanitizer(self, gradients):
@@ -296,17 +263,14 @@ class EnhancedPrivacyMechanism:
         Returns:
             torch.Tensor: Sanitized gradients
         """
-        # 1. Clip gradients to prevent exploding
         clipped_grads = torch.clamp(gradients, -1.0, 1.0)
         
-        # 2. Add differential privacy noise
         noise = torch.normal(
             mean=0, 
             std=self.base_noise_scale, 
             size=clipped_grads.shape
         ).to(clipped_grads.device)
         
-        # 3. Advanced quantization
         sanitized_grads = torch.round(
             clipped_grads * 100 + noise
         ) / 100
@@ -321,34 +285,28 @@ class EnhancedPrivacyMechanism:
             if not user_updates:
                 return []
             
-            # Add key validation
             if not all(isinstance(u, dict) for u in user_updates):
                 raise ValueError("Invalid updates format")
             
-            # GPU-based flattening with consistent parameter ordering
             grad_matrix = []
             reference_keys = sorted(user_updates[0].keys())  # Get consistent parameter order
         
             for update in user_updates:
-                # Flatten while maintaining parameter order and device placement
                 flat_update = torch.cat([
                     update[k].view(-1).to(device, non_blocking=True)
                     for k in reference_keys
                 ])
                 grad_matrix.append(flat_update)
         
-            # Create padded tensor on GPU
             max_length = max(t.numel() for t in grad_matrix)
             grad_matrix = torch.stack([
                 F.pad(t, (0, max_length - t.numel()), value=0) 
                 for t in grad_matrix
             ])
         
-            # GPU-accelerated PCA using PyTorch SVD
             U, S, V = torch.pca_lowrank(grad_matrix, q=2)
             transformed_grads = torch.matmul(grad_matrix, V[:, :2])
         
-            # Anomaly detection (modified for GPU tensors)
             centroid = torch.mean(grad_matrix, dim=0)
             distances = torch.norm(grad_matrix - centroid, dim=1)
         
@@ -357,7 +315,6 @@ class EnhancedPrivacyMechanism:
             Q1_idx, Q3_idx = n // 4, 3 * n // 4
             Q1, Q3 = distances_sorted[Q1_idx], distances_sorted[Q3_idx]
         
-            # Thresholding entirely on GPU
             threshold = Q3 + 1.5 * (Q3 - Q1)
             anomalies = (distances > threshold)
         
@@ -380,36 +337,28 @@ class EnhancedPrivacyMechanism:
             nn.Module: Model with neutralized trap weights
         """
         try:
-            # Ensure first layer weights are on CPU for numpy operations
             first_layer = model.fc1.weight.data.cpu().numpy()
             
-            # Robust SVD with fallback
             try:
                 U, S, Vt = np.linalg.svd(first_layer, full_matrices=False)
             except:
-                # Fallback to more stable decomposition
                 U, S, Vt = np.linalg.svd(first_layer + 1e-8 * np.eye(first_layer.shape[0]), full_matrices=False)
             
-            # Statistical trap weight identification
             sv_mean = np.mean(S)
             sv_std = np.std(S)
             
-            # Neutralization mask
             row_mask = (np.abs(U) > 0.95).any(axis=1)  # Row-wise check
             neutralization_mask = (
                 (np.abs(first_layer) > sv_mean + 2 * sv_std) | 
                 row_mask[:, np.newaxis]  # Broadcast mask
             )
             
-            # Safe neutralization
             first_layer[neutralization_mask] = 0
             
-            # Robust normalization
             row_norms = np.linalg.norm(first_layer, axis=1, keepdims=True)
             row_norms[row_norms == 0] = 1  # Prevent division by zero
             normalized_layer = first_layer / row_norms
             
-            # Update model weights
             model.fc1.weight.data = torch.from_numpy(normalized_layer).float().to(model.fc1.weight.device)
             
             return model
@@ -417,8 +366,6 @@ class EnhancedPrivacyMechanism:
         except Exception as e:
             print(f"Trap weight neutralization error: {e}")
             return model
-
-# Rest of the code remains the same
 
     def secure_aggregation_plus(self, user_models):
         """
@@ -430,21 +377,18 @@ class EnhancedPrivacyMechanism:
         Returns:
             torch.Tensor: Aggregated and verified model parameters
         """
-        # 1. Cryptographic hash verification
         model_hashes = [
             hashlib.sha256(
                 str(model.state_dict()).encode()
             ).hexdigest() for model in user_models
         ]
         
-        # 2. Hash consistency check with tolerance
         unique_hashes = set(model_hashes)
         hash_consistency_ratio = len(unique_hashes) / len(model_hashes)
         
         if hash_consistency_ratio > 0.3:
             print("Warning: Potential model tampering detected!")
         
-        # 3. Weighted secure averaging with integrity threshold
         aggregated_model = user_models[0]
         for param_name in aggregated_model.state_dict():
             param_values = [
@@ -452,20 +396,17 @@ class EnhancedPrivacyMechanism:
                 for model in user_models
             ]
             
-            # Apply additional integrity checks
             valid_params = [
                 param for param in param_values 
                 if torch.all(torch.isfinite(param))
             ]
             
-            # Compute robust average
             aggregated_model.state_dict()[param_name] = torch.mean(
                 torch.stack(valid_params), dim=0
             )
         
         return aggregated_model
 
-# Experimental Group Configuration
 class ExperimentalGroups:
     def __init__(self, base_model, dataset):
         """
@@ -493,7 +434,6 @@ class ExperimentalGroups:
             'sybil_detection': False
         }
 
-# Metrics Tracking
 class MetricsTracker:
     def __init__(self):
         """
@@ -531,10 +471,8 @@ class MetricsTracker:
         }
 
 def main():
-    # Initialize components
     privacy_mechanism = EnhancedPrivacyMechanism()
     
-    # Demonstrate enhanced mechanisms
     print("Advanced Privacy Mechanisms Initialized Successfully!")
 
 if __name__ == "__main__":
@@ -563,33 +501,27 @@ class FederatedLearningExperiment:
         print(f"Initializing Federated Learning Experiment...")
         print(f"Configuration: {num_users} users, {users_per_round} users/round, {num_rounds} rounds")
 
-        # Add this for PCA reproducibility
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-        # Experiment Configuration
         self.num_users = num_users
         self.users_per_round = users_per_round
         self.num_rounds = num_rounds
         self.device = device
         self.generator = cuda_generator
 
-        # Dataset Preparation
         print("Preparing Dataset...")
         self.user_datasets = DatasetPreparation.get_cifar10_dataset(num_users)
         print(f"Dataset prepared with {len(self.user_datasets)} user-specific datasets")
 
-        # Privacy Mechanism
         self.privacy_mechanism = EnhancedPrivacyMechanism(
             base_noise_scale=0.1,
             num_users=num_users,
             device=self.device
         )
 
-        # Metrics Tracking
         self.metrics_tracker = MetricsTracker()
 
-        # Experiment Types
         self.experiment_types = {
             'baseline': {
                 'noise_scale': 0.1,
@@ -603,7 +535,6 @@ class FederatedLearningExperiment:
             }
         }
 
-        # Test Dataset for Accurate Evaluation
         transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -633,7 +564,6 @@ class FederatedLearningExperiment:
         optimizer = optim.SGD(local_model.parameters(), lr=0.01, momentum=0.9)
         criterion = nn.CrossEntropyLoss()
 
-        # Custom data loader with careful pin memory handling
         def custom_collate(batch):
             # Move data to CPU first, then to GPU if needed
             images = torch.stack([item[0] for item in batch])
@@ -648,17 +578,14 @@ class FederatedLearningExperiment:
             pin_memory=False  # Disable pin memory to avoid issues
         )
 
-        # Training configuration
         config = self.experiment_types[experiment_type]
         noise_scale = config['noise_scale']
 
-        # Adaptive noise scaling for proposed method
         if noise_scale == 'adaptive':
             noise_scale = float(self.privacy_mechanism.adaptive_noise_scale(
                 torch.norm(torch.cat([p.view(-1) for p in local_model.parameters()]))
             ))
 
-        # Training loop
         local_model.train()
         local_accuracy = 0
         total_samples = 0
@@ -673,13 +600,11 @@ class FederatedLearningExperiment:
                 loss = criterion(outputs, batch_y)
                 loss.backward()
 
-                # Gradient sanitization
                 if config['sanitization']:
                     for param in local_model.parameters():
                         if param.grad is not None:
                             param.grad = self.privacy_mechanism.gradient_sanitizer(param.grad)
 
-                # Add differential privacy noise
                 if noise_scale > 0:
                     for param in local_model.parameters():
                         if param.grad is not None:
@@ -690,7 +615,6 @@ class FederatedLearningExperiment:
 
                 optimizer.step()
 
-                # Compute batch accuracy
                 with torch.no_grad():
                     _, predicted = torch.max(outputs, 1)
                     batch_acc = (predicted == batch_y).float().mean().item()
@@ -699,10 +623,8 @@ class FederatedLearningExperiment:
                     local_accuracy += (predicted == batch_y).sum().item()
                     total_samples += batch_y.size(0)
 
-        # Compute local accuracy
         local_accuracy /= total_samples
 
-        # Return local update with additional metadata
         local_update = {
             'update': {
                 name: local_model.state_dict()[name] - global_model.state_dict()[name]
@@ -726,14 +648,9 @@ class FederatedLearningExperiment:
             dict: Aggregated update with Sybil detection metadata
         """
         config = self.experiment_types[experiment_type]
-
-        # Prepare update matrix for detection
-        # Ensure all updates are converted to CPU for numpy conversion
-        # Replace CPU conversion with:
         
         update_matrix = [update['update'] for update in local_updates]  # Keep on GPU
 
-        # Sybil detection
         sybil_indices = []
         if config['sybil_detection']:
             try:
@@ -742,13 +659,11 @@ class FederatedLearningExperiment:
             except Exception as e:
                 print(f"Sybil detection error: {e}")
 
-        # Remove Sybil updates
         cleaned_updates = [
             update for i, update in enumerate(local_updates)
             if i not in sybil_indices
         ]
 
-        # Aggregate updates
         aggregated_update = {}
         for key in update_matrix[0].keys():
             aggregated_update[key] = torch.mean(
@@ -798,37 +713,30 @@ class FederatedLearningExperiment:
         """
 
         try:
-            # Create multiple random inputs
             random_inputs = torch.randn(10, 3, 32, 32).to(device)
 
-            # Extract intermediate layer representations
             activations = []
             def hook_fn(module, input, output):
                 activations.append(output.detach())
 
-            # Register hook on first layer
             hook = model.fc1.register_forward_hook(hook_fn)
 
-            # Forward pass
             model(random_inputs)
 
-            # Remove hook
             hook.remove()
 
-            # Compute signal-to-noise characteristics
             if activations:
                 layer_output = activations[0]
                 signal_power = torch.mean(layer_output ** 2)
                 noise_power = torch.var(layer_output, unbiased=False)
 
-                # Compute SNR in decibels
                 eps = 1e-8
                 snr = 10 * torch.log10(signal_power / (noise_power + eps))
-                # Handle extreme cases
                 snr = torch.where(torch.isfinite(snr), snr, torch.tensor(0.0).to(device))
                 return torch.clamp(snr, min=-50, max=100).item()
 
             return 0
+
         except Exception as e:
             print(f"SNR calculation error: {str(e)[:200]}")
             return 0
@@ -843,10 +751,8 @@ class FederatedLearningExperiment:
         Returns:
             dict: Comprehensive experiment metrics
         """
-        # Initialize global model
         global_model = TrapModel().to(device)
 
-        # Metrics initialization
         metrics = {
             'global_accuracy': [],
             'reconstruction_snr': [],
@@ -855,7 +761,6 @@ class FederatedLearningExperiment:
             'total_sybil_count': 0
         }
 
-        # User preparation with sybils
         users = [
             {'is_sybil': random.random() < 0.3, 'data': dataset}
             for dataset in list(self.user_datasets.values())
@@ -865,10 +770,8 @@ class FederatedLearningExperiment:
         for round in range(self.num_rounds):
             print(f"Round {round + 1}/{self.num_rounds}")
 
-            # User selection
             selected_users = random.sample(users, self.users_per_round)
 
-            # Local training
             local_updates = []
             local_accuracies = []
             for user in selected_users:
@@ -880,21 +783,17 @@ class FederatedLearningExperiment:
                 local_updates.append(update)
                 local_accuracies.append(update['local_accuracy'])
 
-            # Aggregation
             aggregation_result = self.aggregate_updates(
                 local_updates,
                 experiment_type
             )
 
-            # Update global model
             for name, param in global_model.state_dict().items():
                 global_model.state_dict()[name] += aggregation_result['aggregated_update'][name]
 
-            # Optional: Trap weight neutralization
             if experiment_type == 'proposed':
                 global_model = self.privacy_mechanism.trap_weight_neutralization(global_model)
 
-            # Metrics collection
             metrics['global_accuracy'].append(self.test_accuracy(global_model))
             metrics['reconstruction_snr'].append(
                 self.calculate_reconstruction_snr(global_model)
@@ -916,35 +815,30 @@ class FederatedLearningExperiment:
         """
         plt.figure(figsize=(20, 10))
 
-        # 1. Global Accuracy Comparison
         plt.subplot(2, 3, 1)
         plt.plot(baseline_metrics['global_accuracy'], label='Baseline')
         plt.plot(proposed_metrics['global_accuracy'], label='Proposed')
         plt.title('Global Model Accuracy')
         plt.legend()
 
-        # 2. Reconstruction SNR
         plt.subplot(2, 3, 2)
         plt.plot(baseline_metrics['reconstruction_snr'], label='Baseline')
         plt.plot(proposed_metrics['reconstruction_snr'], label='Proposed')
         plt.title('Reconstruction Signal-to-Noise Ratio')
         plt.legend()
 
-        # 3. Sybil Detection
         plt.subplot(2, 3, 3)
         plt.plot(baseline_metrics['sybil_detected'], label='Baseline Sybil')
         plt.plot(proposed_metrics['sybil_detected'], label='Proposed Sybil')
         plt.title('Sybil Users Detected per Round')
         plt.legend()
 
-        # 4. Local Accuracies
         plt.subplot(2, 3, 4)
         plt.plot(baseline_metrics['local_accuracies'], label='Baseline')
         plt.plot(proposed_metrics['local_accuracies'], label='Proposed')
         plt.title('Local Model Accuracies')
         plt.legend()
 
-        # 5. Cumulative Sybil Detection
         plt.subplot(2, 3, 5)
         plt.bar(['Baseline', 'Proposed'],
                 [baseline_metrics['total_sybil_count'],
@@ -965,22 +859,18 @@ class FederatedLearningExperiment:
         Returns:
             dict: Comprehensive statistical analysis
         """
-        # Convert to numpy arrays for scipy compatibility
         baseline_acc = np.array(baseline_metrics['global_accuracy'])
         proposed_acc = np.array(proposed_metrics['global_accuracy'])
     
-        # Round to 6 decimal places to avoid precision warnings
         baseline_acc = np.round(baseline_acc, 6)
         proposed_acc = np.round(proposed_acc, 6)
 
-        # Use Wilcoxon signed-rank test for accuracy comparison
         try:
             acc_test = stats.wilcoxon(baseline_acc, proposed_acc)
         except Exception as e:
             print(f"Statistical test error: {str(e)[:200]}")
             acc_test = (np.nan, np.nan)
 
-        # Multiple statistical tests
         tests = {
             'Accuracy': acc_test,
             'Reconstruction SNR': stats.ttest_ind(
@@ -1002,20 +892,16 @@ class FederatedLearningExperiment:
         }
 
 def main():
-    # Remove any global tensor type setting
     print("Starting Federated Learning Experiment")
 
-    # Set random seed for reproducibility
     torch.manual_seed(42)
     np.random.seed(42)
     random.seed(42)
 
-    # Add CUDA-specific seed setting
     if torch.cuda.is_available():
         torch.cuda.manual_seed(42)
         torch.cuda.manual_seed_all(42)
 
-    # Initialize experiment
     experiment = FederatedLearningExperiment(
         num_users=100,
         users_per_round=10,
@@ -1023,37 +909,30 @@ def main():
     )
 
     print("Running Baseline Experiment...")
-    # Run baseline experiment
     baseline_metrics = experiment.federated_training(
         experiment_type='baseline'
     )
 
-    # Clear GPU cache between experiments
     torch.cuda.empty_cache()
 
     print("Running Proposed Method Experiment...")
-    # Run proposed method experiment
     proposed_metrics = experiment.federated_training(
         experiment_type='proposed'
     )
 
     print("Visualizing Results...")
-    # Visualize results
     experiment.visualize_results(baseline_metrics, proposed_metrics)
 
-    # Statistical significance
     significance_results = experiment.statistical_significance(
         baseline_metrics,
         proposed_metrics
     )
 
-    # Print statistical test results
     for test_name, (t_stat, p_value) in significance_results['test_results'].items():
         print(f"{test_name} Test:")
         print(f"  T-Statistic: {t_stat}")
         print(f"  P-Value: {p_value}")
 
-    # Print Sybil detection summary
     print("\nSybil Detection Summary:")
     print(significance_results['summary'])
 
